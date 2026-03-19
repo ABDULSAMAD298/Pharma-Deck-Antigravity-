@@ -24,7 +24,7 @@ export default function CreditBadge({ onBuyClick, compact = false }: CreditBadge
                 .from('credits')
                 .select('total_credits, used_credits')
                 .eq('user_id', user.id)
-                .single()
+                .single() as { data: { total_credits: number, used_credits: number } | null }
 
             if (data) {
                 setCredits(data.total_credits - data.used_credits)

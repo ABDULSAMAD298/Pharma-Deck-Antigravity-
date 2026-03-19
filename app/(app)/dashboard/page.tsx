@@ -43,13 +43,13 @@ export default function DashboardPage() {
             const { data: { user } } = await supabase.auth.getUser()
             if (!user) { router.push('/login'); return }
 
-            const { data: profile } = await supabase.from('profiles').select('full_name').eq('id', user.id).single()
+            const { data: profile } = await supabase.from('profiles').select('full_name').eq('id', user.id).single() as { data: { full_name: string | null } | null }
             if (profile?.full_name) {
                 setUserName(profile.full_name.split(' ')[0])
             }
 
-            const { data: credits } = await supabase.from('credits').select('*').eq('user_id', user.id).single()
-            const { data: gens } = await supabase.from('generations').select('*').eq('user_id', user.id).order('created_at', { ascending: false }).limit(10)
+            const { data: credits } = await supabase.from('credits').select('*').eq('user_id', user.id).single() as { data: { total_credits: number, used_credits: number } | null }
+            const { data: gens } = await supabase.from('generations').select('*').eq('user_id', user.id).order('created_at', { ascending: false }).limit(10) as { data: Generation[] | null }
 
             const pCount = gens?.filter((g: Generation) => g.type === 'presentation').length ?? 0
             const eCount = gens?.filter((g: Generation) => g.type === 'excel').length ?? 0
