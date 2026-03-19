@@ -1,8 +1,9 @@
 'use client'
-import { useEffect, useState } from 'react'
+
+import { useEffect, useState, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 
-export default function PaymentSuccess() {
+function PaymentSuccessContent() {
   const params = useSearchParams()
   const router = useRouter()
   const plan = params.get('plan')
@@ -19,7 +20,7 @@ export default function PaymentSuccess() {
       })
     }, 1000)
     return () => clearInterval(timer)
-  }, [])
+  }, [router])
 
   const planNames: Record<string, string> = {
     starter: 'Starter',
@@ -58,5 +59,17 @@ export default function PaymentSuccess() {
         </button>
       </div>
     </div>
+  )
+}
+
+export default function PaymentSuccess() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-emerald-500"></div>
+      </div>
+    }>
+      <PaymentSuccessContent />
+    </Suspense>
   )
 }
