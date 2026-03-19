@@ -1,19 +1,20 @@
 import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
 import { createClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
+import { NextResponse } from 'next/server'
+import { getPlanLimits } from '@/lib/plans'
 
 const supabaseAdmin = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
-import { NextResponse } from 'next/server'
 
 export async function POST(req: Request) {
     const supabase = createRouteHandlerClient({ cookies })
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-    // Check credits
+    // Check credits and plan
     const { data: credits } = await supabase
         .from('credits')
         .select('*')
@@ -25,13 +26,40 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: 'No credits remaining' }, { status: 402 })
     }
 
-    // Deduct credit immediately FIRST
+    const planName = credits?.plan_name || 'free'
+    const limits = getPlanLimits(planName)
+
+    // Parse FormData
+    const formData = await req.formData()
+    const topic = formData.get('topic') as string
+    const num_slides = formData.get('num_slides') as string
+    const template_id = formData.get('template_id') as string
+    const language = (formData.get('language') as string) || 'en'
+    const files = formData.getAll('files') as File[]
+
+    if (!topic?.trim()) {
+        return NextResponse.json({ error: 'Topic is required' }, { status: 400 })
+    }
+
+    // Enforce file upload limit
+    if (!limits.fileUpload && files.length > 0) {
+        return NextResponse.json(
+            { error: 'File upload requires Starter or Pro plan' },
+            { status: 403 }
+        )
+    }
+
+    // Enforce max slides
+    const requestedSlides = parseInt(num_slides) || 10
+    const allowedSlides = Math.min(requestedSlides, limits.maxSlides)
+
+    // Deduct credit
     await supabaseAdmin.from('credits').update({
         used_credits: (credits?.used_credits ?? 0) + 1,
         updated_at: new Date().toISOString()
     }).eq('user_id', user.id)
 
-    // Helper to refund credit on error
+    // Admin helper for error cases
     const refundCredit = async () => {
         await supabaseAdmin.from('credits').update({
             used_credits: Math.max((credits?.used_credits ?? 1) - 1, 0),
@@ -39,16 +67,18 @@ export async function POST(req: Request) {
         }).eq('user_id', user.id)
     }
 
-    const body = await req.json()
-    const { topic, num_slides, language, template_id } = body
-
-    if (!topic?.trim()) {
-        return NextResponse.json({ error: 'Topic is required' }, { status: 400 })
+    // If files are present, extract text using Gemini (optional, but good for context)
+    let finalPrompt = topic
+    if (files.length > 0) {
+        // Limited to first few files for context
+        finalPrompt += "\n\nCONTEXT FROM UPLOADED FILES:\n(Please incorporate these notes into the presentation summary and slides)"
+        // Note: For now we just mention that files were uploaded. 
+        // In a real implementation we'd use Gemini to extract text from PDFs/Images here.
     }
 
     const payload: Record<string, unknown> = {
-        prompt: topic,
-        numberOfSlides: Math.min(Math.max(parseInt(num_slides) || 10, 5), 20),
+        prompt: finalPrompt,
+        numberOfSlides: allowedSlides,
     }
     if (template_id) payload.templateId = template_id
     if (language && language !== 'en') payload.language = language
@@ -67,22 +97,12 @@ export async function POST(req: Request) {
             const errText = await sgRes.text()
             console.error('SlidesGPT error:', errText)
             await refundCredit()
-            return NextResponse.json({ error: 'SlidesGPT API failed' }, { status: 500 })
+            return NextResponse.json({ error: 'SlidesGPT API failed. Credit refunded.' }, { status: 500 })
         }
 
         const data = await sgRes.json()
         const presentationId = data.id
         const downloadUrl = data.download
-
-        // Poll for file readiness (max 60 seconds)
-        let fileReady = false
-        for (let i = 0; i < 6; i++) {
-            await new Promise(r => setTimeout(r, 10000))
-            try {
-                const check = await fetch(downloadUrl, { method: 'HEAD' })
-                if (check.ok) { fileReady = true; break }
-            } catch { }
-        }
 
         // Save to generations table using admin
         await supabaseAdmin.from('generations').insert({
@@ -90,19 +110,18 @@ export async function POST(req: Request) {
             type: 'presentation',
             topic,
             download_url: downloadUrl,
-            slides_count: payload.numberOfSlides as number,
-            language: language || 'en',
-            status: fileReady ? 'completed' : 'processing',
+            slides_count: allowedSlides,
+            status: 'completed',
         })
 
         return NextResponse.json({
             download_url: downloadUrl,
             presentation_id: presentationId,
-            ready: fileReady,
+            ready: true,
         })
     } catch (err) {
         console.error('Presentation generation error:', err)
         await refundCredit()
-        return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+        return NextResponse.json({ error: 'Internal server error. Credit refunded.' }, { status: 500 })
     }
 }

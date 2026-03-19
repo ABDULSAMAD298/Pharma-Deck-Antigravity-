@@ -11,6 +11,7 @@ import {
 import { createClient } from '@/lib/supabase/client'
 import CreditBadge from '@/components/ui/CreditBadge'
 import PricingModal from '@/components/ui/PricingModal'
+import { usePlan } from '@/hooks/usePlan'
 
 interface Stats {
     presentations: number
@@ -32,6 +33,7 @@ interface Generation {
 export default function DashboardPage() {
     const supabase = createClient()
     const router = useRouter()
+    const { planName, limits, remaining } = usePlan()
     const [userName, setUserName] = useState('')
     const [stats, setStats] = useState<Stats>({ presentations: 0, excels: 0, creditsRemaining: 0, creditsUsed: 0 })
     const [generations, setGenerations] = useState<Generation[]>([])
@@ -81,9 +83,20 @@ export default function DashboardPage() {
             {/* Top bar */}
             <div className="flex items-center justify-between mb-8">
                 <div>
-                    <h1 className="text-xl sm:text-2xl font-bold text-white">
-                        Welcome back, {userName || 'Student'} 👋
-                    </h1>
+                    <div className="flex items-center gap-3">
+                        <h1 className="text-xl sm:text-2xl font-bold text-white">
+                            Welcome back, {userName || 'Student'} 👋
+                        </h1>
+                        <span className={`text-[10px] px-2.5 py-1 rounded-full font-bold uppercase tracking-wider ${
+                            planName === 'pro'     ? 'bg-amber-500/20 text-amber-400 border border-amber-500/20' :
+                            planName === 'starter' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/20' :
+                            'bg-slate-700/50 text-slate-400 border border-slate-600/50'
+                        }`}>
+                            {planName === 'pro' ? '🔥 Pro' : 
+                             planName === 'starter' ? '⭐ Starter' : 
+                             '🆓 Free'}
+                        </span>
+                    </div>
                     <p className="text-slate-400 text-sm mt-0.5">Here's your PharmaDeck overview</p>
                 </div>
                 <div className="flex items-center gap-3">
@@ -138,7 +151,16 @@ export default function DashboardPage() {
                     <p className="text-slate-400 text-sm mb-3 leading-relaxed">
                         Create professional PowerPoint presentations instantly from any pharmacy topic.
                     </p>
-                    <p className="text-emerald-400 text-xs font-semibold mb-5">⚡ 1 credit = Rs. 840 value</p>
+                    
+                    <div className="flex flex-wrap gap-2 mb-5">
+                        <span className="text-[10px] bg-slate-700/50 text-slate-400 px-2 py-0.5 rounded-full border border-slate-600/50">
+                            📊 Max {limits.maxSlides} slides
+                        </span>
+                        <span className="text-[10px] bg-slate-700/50 text-slate-400 px-2 py-0.5 rounded-full border border-slate-600/50">
+                            {limits.fileUpload ? `📎 ${limits.maxFiles} file uploads` : '🔒 No file upload'}
+                        </span>
+                    </div>
+
                     <Link
                         href="/presentation"
                         className="inline-flex items-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white font-semibold rounded-xl px-5 py-2.5 text-sm transition-all duration-200 group-hover:shadow-lg group-hover:shadow-emerald-500/20"
@@ -162,7 +184,21 @@ export default function DashboardPage() {
                     <p className="text-slate-400 text-sm mb-3 leading-relaxed">
                         Create color-coded study spreadsheets for drugs, pharmacokinetics, and more.
                     </p>
-                    <p className="text-blue-400 text-xs font-semibold mb-5">⚡ 1 credit = Rs. 300 value</p>
+                    
+                    <div className="flex flex-wrap gap-2 mb-5">
+                        <span className="text-[10px] bg-slate-700/50 text-slate-400 px-2 py-0.5 rounded-full border border-slate-600/50">
+                            🎨 Theme selection
+                        </span>
+                        <span className="text-[10px] bg-slate-700/50 text-slate-400 px-2 py-0.5 rounded-full border border-slate-600/50">
+                            {limits.fileUpload ? `📎 ${limits.maxFiles} file uploads` : '🔒 No file upload'}
+                        </span>
+                        {limits.maxImages > 0 && (
+                            <span className="text-[10px] bg-slate-700/50 text-slate-400 px-2 py-0.5 rounded-full border border-slate-600/50">
+                                🖼️ {limits.maxImages} image embeds
+                            </span>
+                        )}
+                    </div>
+
                     <Link
                         href="/excel"
                         className="inline-flex items-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white font-semibold rounded-xl px-5 py-2.5 text-sm transition-all duration-200"
@@ -183,7 +219,9 @@ export default function DashboardPage() {
                     <h3 className="text-white font-bold flex items-center gap-2">
                         <Clock className="w-4 h-4 text-slate-400" /> Recent Generations
                     </h3>
-                    <span className="text-slate-500 text-xs">{generations.length} items</span>
+                    <div className="flex items-center gap-2 text-[10px] text-slate-500 uppercase tracking-wider font-bold">
+                        {planName === 'free' ? '📜 Last 10 only' : planName === 'starter' ? '📜 Last 10 only' : '🌎 Full History'}
+                    </div>
                 </div>
 
                 {generations.length === 0 ? (

@@ -1,7 +1,7 @@
 'use client'
 
 import { motion } from 'framer-motion'
-import { Check, Zap } from 'lucide-react'
+import { Check, Zap, X } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 
 export interface PricingPlan {
@@ -27,10 +27,12 @@ const plans: PricingPlan[] = [
         subtitle: 'Forever free • No card required',
         credits: 2,
         features: [
-            '2 AI Presentations',
-            'Instant .pptx download',
-            'Instant .xlsx download',
-            'Professional quality output',
+            '✅ 2 AI Presentations',
+            '✅ 2 AI Excel Sheets',
+            '✅ Max 10 slides',
+            '❌ No file upload',
+            '❌ No image embed',
+            '❌ No history',
         ],
     },
     {
@@ -44,13 +46,12 @@ const plans: PricingPlan[] = [
         badgeColor: 'bg-emerald-500',
         highlight: true,
         features: [
-            '5 AI Presentations',
-            'or 5 AI Excel Sheets',
-            'Mix & match any combination',
-            'Instant download (.pptx & .xlsx)',
-            'Generation history',
-            'Professional designs',
-            'Priority support',
+            '✅ 5 credits',
+            '✅ Max 15 slides',
+            '✅ Upload up to 3 files',
+            '✅ 3 image embeds per sheet',
+            '✅ Last 10 generations history',
+            '❌ No priority generation',
         ],
     },
     {
@@ -64,14 +65,13 @@ const plans: PricingPlan[] = [
         badgeColor: 'bg-amber-500',
         dark: true,
         features: [
-            '15 AI Presentations',
-            'or 15 AI excel sheets',
-            'Mix & match any combination',
-            'Instant download (.pptx & .xlsx)',
-            'Full generation history',
-            'Priority generation (faster)',
-            'Professional designs',
-            'Dedicated email support',
+            '✅ 15 credits',
+            '✅ Max 20 slides',
+            '✅ Upload up to 10 files',
+            '✅ 10 image embeds per sheet',
+            '✅ Full generation history',
+            '✅ Priority generation',
+            '✅ Email support',
         ],
     },
 ]
@@ -120,12 +120,21 @@ export function PricingCard({ plan, onBuy, index = 0 }: PricingCardProps) {
 
             {/* Features */}
             <ul className="space-y-3 mb-8 flex-1">
-                {plan.features.map((f, i) => (
-                    <li key={i} className="flex items-start gap-2.5">
-                        <Check className="w-4 h-4 text-emerald-500 mt-0.5 flex-shrink-0" />
-                        <span className={`text-sm ${featureColor}`}>{f}</span>
-                    </li>
-                ))}
+                {plan.features.map((f, i) => {
+                    const isRejected = f.startsWith('❌')
+                    return (
+                        <li key={i} className="flex items-start gap-2.5">
+                            {isRejected ? (
+                                <X className="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" />
+                            ) : (
+                                <Check className="w-4 h-4 text-emerald-500 mt-0.5 flex-shrink-0" />
+                            )}
+                            <span className={`text-sm ${featureColor} ${isRejected ? 'opacity-50' : ''}`}>
+                                {f.substring(2)}
+                            </span>
+                        </li>
+                    )
+                })}
             </ul>
 
             {/* CTA */}

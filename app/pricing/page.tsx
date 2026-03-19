@@ -3,10 +3,11 @@
 import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { useRouter } from 'next/navigation'
-import { ChevronDown, ChevronUp } from 'lucide-react'
+import { ChevronDown, ChevronUp, Loader2 } from 'lucide-react'
 import Navbar from '@/components/layout/Navbar'
 import Footer from '@/components/layout/Footer'
 import PricingSection, { type PricingPlan } from '@/components/ui/PricingCard'
+import toast from 'react-hot-toast'
 
 const faqs = [
     {
@@ -59,27 +60,54 @@ function FAQItem({ q, a, index }: { q: string; a: string; index: number }) {
 
 export default function PricingPage() {
     const router = useRouter()
+    const [loadingPlan, setLoadingPlan] = useState<string | null>(null)
 
     const handleBuy = async (plan: PricingPlan) => {
         if (plan.id === 'free') {
             router.push('/signup')
             return
         }
+
+        setLoadingPlan(plan.id)
         try {
             const res = await fetch('/api/payment/create', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ planId: plan.id, amount: plan.priceNum, credits: plan.credits, planName: plan.name }),
+                body: JSON.stringify({ plan_name: plan.id }),
             })
             const data = await res.json()
-            if (data.redirect_url) window.location.href = data.redirect_url
-        } catch {
-            router.push('/signup')
+            
+            if (!res.ok) {
+                throw new Error(data.error || 'Payment failed. Try again.')
+            }
+
+            if (data.checkout_url) {
+                // Redirect to Safepay checkout
+                window.location.href = data.checkout_url
+            } else {
+                router.push('/signup')
+            }
+        } catch (err: any) {
+            console.error('Payment error:', err)
+            toast.error(err.message || 'Payment failed. Try again.')
+        } finally {
+            setLoadingPlan(null)
         }
     }
 
     return (
-        <div className="bg-[#F8FAFC] min-h-screen">
+        <div className="bg-[#F8FAFC] min-h-screen relative">
+            {/* Overlay loader when processing */}
+            {loadingPlan && (
+                <div className="fixed inset-0 z-[60] bg-white/60 backdrop-blur-[2px] flex items-center justify-center transition-all duration-300">
+                    <div className="text-center">
+                        <Loader2 className="w-10 h-10 text-emerald-500 animate-spin mx-auto mb-3" />
+                        <p className="text-slate-900 font-bold">Setting up secure payment...</p>
+                        <p className="text-slate-500 text-sm mt-1">Please wait a moment</p>
+                    </div>
+                </div>
+            )}
+
             <Navbar />
 
             <main className="pt-24 pb-20">

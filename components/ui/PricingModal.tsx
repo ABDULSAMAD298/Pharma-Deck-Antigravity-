@@ -1,10 +1,11 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { X } from 'lucide-react'
+import { X, Loader2 } from 'lucide-react'
 import PricingSection, { type PricingPlan } from './PricingCard'
 import { useRouter } from 'next/navigation'
+import toast from 'react-hot-toast'
 
 interface PricingModalProps {
     isOpen: boolean
@@ -13,6 +14,7 @@ interface PricingModalProps {
 
 export default function PricingModal({ isOpen, onClose }: PricingModalProps) {
     const router = useRouter()
+    const [loadingPlan, setLoadingPlan] = useState<string | null>(null)
 
     // Lock body scroll
     useEffect(() => {
@@ -30,19 +32,31 @@ export default function PricingModal({ isOpen, onClose }: PricingModalProps) {
             onClose()
             return
         }
+
+        setLoadingPlan(plan.id)
         try {
             const res = await fetch('/api/payment/create', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ planId: plan.id, amount: plan.priceNum, credits: plan.credits, planName: plan.name }),
+                body: JSON.stringify({ plan_name: plan.id }),
             })
             const data = await res.json()
-            if (data.redirect_url) {
-                window.location.href = data.redirect_url
+            
+            if (!res.ok) {
+                throw new Error(data.error || 'Payment failed. Try again.')
             }
-        } catch {
-            router.push('/pricing')
-            onClose()
+
+            if (data.checkout_url) {
+                // Redirect to Safepay checkout — shows JazzCash, EasyPaisa, Cards etc
+                window.location.href = data.checkout_url
+            } else {
+                throw new Error('No checkout URL received')
+            }
+        } catch (err: any) {
+            console.error('Payment error:', err)
+            toast.error(err.message || 'Payment setup failed. Try again.')
+        } finally {
+            setLoadingPlan(null)
         }
     }
 
@@ -61,9 +75,20 @@ export default function PricingModal({ isOpen, onClose }: PricingModalProps) {
                         animate={{ opacity: 1, scale: 1, y: 0 }}
                         exit={{ opacity: 0, scale: 0.95, y: 20 }}
                         transition={{ duration: 0.25 }}
-                        className="bg-[#F8FAFC] rounded-2xl max-w-5xl w-full max-h-[90vh] overflow-y-auto"
+                        className="bg-[#F8FAFC] rounded-2xl max-w-5xl w-full max-h-[90vh] overflow-y-auto relative"
                         onClick={(e) => e.stopPropagation()}
                     >
+                        {/* Overlay loader when processing */}
+                        {loadingPlan && (
+                            <div className="absolute inset-0 z-10 bg-white/60 backdrop-blur-[2px] flex items-center justify-center rounded-2xl transition-all duration-300">
+                                <div className="text-center">
+                                    <Loader2 className="w-10 h-10 text-emerald-500 animate-spin mx-auto mb-3" />
+                                    <p className="text-slate-900 font-bold">Setting up secure payment...</p>
+                                    <p className="text-slate-500 text-sm mt-1">Please wait a moment</p>
+                                </div>
+                            </div>
+                        )}
+
                         {/* Header */}
                         <div className="flex items-center justify-between p-6 border-b border-slate-200">
                             <div>
